@@ -62,10 +62,11 @@ app.post('/gpt-to-monday', async (req, res) => {
 
     res.status(200).json({ message: 'Item créé et update ajouté.' });
 
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json({ error: 'Erreur lors de la création.' });
-  }
+ } catch (err) {
+  const errorDetail = err.response?.data || err.message || err;
+  console.error('Erreur API Monday:', errorDetail);
+  res.status(500).json({ error: errorDetail });
+}
 });
 
 const PORT = process.env.PORT;
