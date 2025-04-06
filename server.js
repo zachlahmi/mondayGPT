@@ -1,0 +1,72 @@
+// server.js
+const express = require('express');
+const axios = require('axios');
+const app = express();
+require('dotenv').config();
+
+app.use(express.json());
+
+const MONDAY_API_KEY = process.env.MONDAY_API_KEY;
+const BOARD_MAPPING = JSON.parse(process.env.BOARD_MAPPING || '{}');
+
+app.post('/gpt-to-monday', async (req, res) => {
+  const { boardName, name, updateText, columns } = req.body;
+  const boardId = BOARD_MAPPING[boardName];
+
+  if (!boardId) {
+    return res.status(400).json({ error: `Board name '${boardName}' not found in mapping.` });
+  }
+
+  try {
+    // Crée un item
+    const queryCreateItem = {
+      query: `
+        mutation {
+          create_item (
+            board_id: ${boardId},
+            item_name: "${name}",
+            column_values: "${JSON.stringify(columns).replace(/"/g, '\\"')}"
+          ) {
+            id
+          }
+        }
+      `
+    };
+
+    const itemResp = await axios.post('https://api.monday.com/v2', queryCreateItem, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: MONDAY_API_KEY
+      }
+    });
+
+    const itemId = itemResp.data.data.create_item.id;
+
+    // Ajoute un update
+    const queryUpdate = {
+      query: `
+        mutation {
+          create_update (item_id: ${itemId}, body: "${updateText}") {
+            id
+          }
+        }
+      `
+    };
+
+    await axios.post('https://api.monday.com/v2', queryUpdate, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: MONDAY_API_KEY
+      }
+    });
+
+    res.status(200).json({ message: 'Item créé et update ajouté.' });
+
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ error: 'Erreur lors de la création.' });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Serveur lancé sur le port ${PORT}`));
